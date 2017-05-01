@@ -39,10 +39,18 @@ extern int32_t mouse_pointer_y;
 extern int32_t mouse_pointer_width;
 extern int32_t mouse_pointer_height;
 
-
+static SDL_Window *display_window = NULL;
+static SDL_Renderer *display_renderer = NULL;
 static SDL_Surface *display_screen;
-static bool	    display_full_screen = false;
-static bool         display_lowres_stretch = false;
+static SDL_Texture *display_texture = NULL;
+static int display_texture_width;
+static int display_texture_height;
+static SDL_PixelFormat *rgba_8888_texture_pixel_format;
+static bool	display_full_screen = false;
+static bool display_borderless_full_screen = false;
+static int display_window_width = 640;
+static int display_window_height = 480;
+static int display_monitor = 0;
 static unsigned char *display_stretch_buffer = NULL;
 static SDL_Color    display_palette[256];
 
@@ -99,21 +107,26 @@ display_set_palette (const uint8_t *palette)
 {
   SDL_Color colours[256];
   int n;
+  int ret;
 
   for (n = 0; n < 256; n++)
     {
       colours[n].r = palette[3 * n + 0] * 4;
       colours[n].g = palette[3 * n + 1] * 4;
       colours[n].b = palette[3 * n + 2] * 4;
-      colours[n].unused = 0;
+      colours[n].a = 255;
     }
 
-  if (SDL_SetPalette (display_screen,
-		      SDL_LOGPAL | SDL_PHYSPAL, colours, 0, 256) != 1)
-    {
-      fprintf (stderr, "SDL_SetPalette: %s\n", SDL_GetError ());
-      return -1;
-    }
+  ret = SDL_SetPaletteColors(
+    display_screen->format->palette,
+    colours,
+    0,
+    256);
+  if (ret != 0)
+  {
+    fprintf (stderr, "SDL_SetPaletteColors: %s\n", SDL_GetError ());
+    return -1;
+  }
 
   memcpy (display_palette, colours, sizeof (display_palette));
 
@@ -124,7 +137,11 @@ int
 display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
 		  const uint8_t *palette)
 {
-  uint32_t flags;
+  if(internal_graphic_mode_list[mode].bpp != 8)
+  {
+    fprintf (stderr, "Bpp wasn't 8! Actual bpp: %d\n", internal_graphic_mode_list[mode].bpp);
+    goto err;
+  }
 
   // call func_e9498
   call_display_set_mode_setup_mouse ();
@@ -135,17 +152,6 @@ display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
   if (!display_initial_mode)
     display_initial_mode = 0xFF;
 
-  // We are using only display_extended_mode = false
-
-  /*  if(internal_graphic_mode_list[mode].mode < 256)
-  {
-    display_extended_mode = false;
-  }
-  else
-  {
-    // display_extended_mode = true;
-    display_extended_mode = false; // Defaulting to false
-  }*/
   display_extended_mode = false;
 
   // Setting mode
@@ -155,18 +161,41 @@ display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
       SDL_FreeSurface (display_screen);
     }
 
-  flags = SDL_SWSURFACE;
-
-  if (display_full_screen)
-    flags |= SDL_FULLSCREEN;
+  if (display_texture != NULL)
+  {
+      SDL_DestroyTexture(display_texture);
+  }
 
   // Stretch lowres ?
-  if (width == 320 && height == 200 && display_lowres_stretch)
+  if (width == 320 && height == 200)
     {
       // Init mode
-      display_screen = SDL_SetVideoMode (640, 480,
+      /*display_screen = SDL_SetVideoMode (640, 480,
   				         internal_graphic_mode_list[mode].bpp,
-                                         flags);
+                                         surface_flags);*/
+
+      // Assumes 8-bit colour in all cases
+      display_screen = SDL_CreateRGBSurfaceWithFormat(
+        0,
+        640, 480,
+        8,
+        SDL_PIXELFORMAT_INDEX8);
+
+      if (display_screen == NULL) {
+        fprintf (stderr, "SDL_CreateRGBSurface() failed: %s", SDL_GetError());
+        goto err;
+      }
+
+      display_texture = SDL_CreateTexture(
+        display_renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        640, 480);
+
+      if (display_texture == NULL) {
+        fprintf (stderr, "SDL_CreateTexture() failed: %s", SDL_GetError());
+        goto err;
+      }
 
       // Allocate buffer
       if (display_stretch_buffer == NULL)
@@ -184,23 +213,48 @@ display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
         }
 
       // Init mode
-      display_screen = SDL_SetVideoMode (width, height,
+      /*display_screen = SDL_SetVideoMode (width, height,
  				         internal_graphic_mode_list[mode].bpp,
-				         flags);
+				         surface_flags);*/
+
+      // Assumes 8-bit colour in all cases
+      display_screen = SDL_CreateRGBSurfaceWithFormat(
+        0,
+        width, height,
+        8,
+        SDL_PIXELFORMAT_INDEX8);
+
+      if (display_screen == NULL) {
+        fprintf (stderr, "SDL_CreateRGBSurface() failed: %s", SDL_GetError());
+        goto err;
+      }
+
+      display_texture = SDL_CreateTexture(
+        display_renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        width, height);
+
+      if (display_texture == NULL) {
+        fprintf (stderr, "SDL_CreateTexture() failed: %s", SDL_GetError());
+        goto err;
+      }
+
     }
 
 
 #ifdef ENABLE_DEBUG
-  printf ("SDL_SetVideoMode(%i, %i, %i, SDL_SWSURFACE) - %s\n",
+  printf ("SDL_CreateRGBSurfaceWithFormat(0, %i, %i, %i, pixel_format) - %s\n",
           width, height, internal_graphic_mode_list[mode].bpp,
           internal_graphic_mode_list[mode].name);
 #endif
 
-  if (display_screen == NULL)
-    {
-      fprintf (stderr, "SDL_SetVideoMode: %s\n", SDL_GetError ());
-      goto err;
-    }
+
+  if (SDL_QueryTexture(display_texture, NULL, NULL, &display_texture_width, &display_texture_height) != 0)
+  {
+    fprintf (stderr, "SDL_QueryTexture failed %s\n", SDL_GetError());
+    goto err;
+  }
 
   lock_screen ();
 
@@ -237,7 +291,7 @@ display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
   if (palette != NULL)
     {
       if (display_set_palette(palette) != 1)
-	goto err;
+      goto err;
     }
 
   display_good = true;
@@ -258,6 +312,12 @@ err:
       display_stretch_buffer = NULL;
     }
 
+  if (display_texture)
+  {
+      SDL_DestroyTexture(display_texture);
+      display_texture = NULL;
+  }
+
   display_good = false;
 
   return -1;
@@ -268,29 +328,57 @@ void
 display_update_mouse_pointer (void)
 {
   int x, y;
+  int c, r;
+  int *texture_pixels;
+  int texture_pitch;
+  unsigned char* display_screen_pixels = display_screen->pixels;
 
   x = MAX (0, mouse_pointer_x);
   y = MAX (0, mouse_pointer_y);
 
-  SDL_UpdateRect (display_screen, x, y,
-		  mouse_pointer_width, mouse_pointer_height);
+  /*SDL_UpdateRect (display_screen, x, y,
+		  mouse_pointer_width, mouse_pointer_height);*/
+
+  SDL_LockTexture(display_texture, NULL, (void*)&texture_pixels, &texture_pitch);
+  for (r = y; r < y + mouse_pointer_height; r++)
+  {
+    int row_start_index = (r * display_texture_width) + x;
+    for(c = row_start_index; c < row_start_index + mouse_pointer_width; c++)
+    {
+      texture_pixels[c] = SDL_MapRGBA(
+        rgba_8888_texture_pixel_format,
+        display_palette[display_screen_pixels[c]].r,
+        display_palette[display_screen_pixels[c]].g,
+        display_palette[display_screen_pixels[c]].b,
+        display_palette[display_screen_pixels[c]].a);
+    }
+  }
+  SDL_UnlockTexture(display_texture);
+
+  SDL_RenderClear(display_renderer);
+  SDL_RenderCopy(display_renderer, display_texture, NULL, NULL);
+  SDL_RenderPresent(display_renderer);
 }
 
 void
 display_update (void)
 {
+  int *texture_pixels;
+  int texture_pitch;
+  int i;
+  unsigned char* display_screen_pixels = display_screen->pixels;
+
   // Stretched lowres in action?
   if (display_stretch_buffer != NULL)
     {
       // Stretch lowres
-      int i, j;
       unsigned char *poutput = (unsigned char*) display_screen->pixels;
       unsigned char *pinput  = display_stretch_buffer;
-
+      int j;
       for (j = 0; j < 480; j++)
         {
           for (i = 0; i < 640; i+=2)
-            {        
+            {
               // Do not touch this formula
               int input_xy = ((j * 200) / 480) * 320 + i / 2;
               int output_xy = j * 640 + i;
@@ -298,16 +386,109 @@ display_update (void)
               poutput[output_xy]     = pinput[input_xy];
               poutput[output_xy + 1] = pinput[input_xy];
             }
-        }    
+        }
   }
 
-  SDL_Flip (display_screen);
+  SDL_LockTexture(display_texture, NULL, (void*)&texture_pixels, &texture_pitch);
+  for(i = 0; i < display_texture_width * display_texture_height; i++)
+  {
+    texture_pixels[i] = SDL_MapRGBA(
+      rgba_8888_texture_pixel_format,
+      display_palette[display_screen_pixels[i]].r,
+      display_palette[display_screen_pixels[i]].g,
+      display_palette[display_screen_pixels[i]].b,
+      display_palette[display_screen_pixels[i]].a);
+  }
+  SDL_UnlockTexture(display_texture);
+
+  SDL_RenderClear(display_renderer);
+  SDL_RenderCopy(display_renderer, display_texture, NULL, NULL);
+  SDL_RenderPresent(display_renderer);
 }
 
-void
+int
 display_initialise (void)
 {
-  SDL_WM_SetCaption ("Syndicate Wars", NULL);
+  uint32_t window_flags = 0;
+  int num_displays = 1;
+  SDL_DisplayMode display_mode;
+
+  window_flags = SDL_WINDOW_MOUSE_CAPTURE;
+
+  if (display_full_screen)
+    { window_flags |= SDL_WINDOW_FULLSCREEN; }
+
+  if (display_borderless_full_screen)
+  {
+    // SDL_WINDOW_FULLSCREEN_DESKTOP didn't work for me on Windows 7 (64-bit)
+    window_flags |= SDL_WINDOW_BORDERLESS;
+
+    if (SDL_GetDesktopDisplayMode(display_monitor, &display_mode) != 0)
+    {
+      fprintf (stderr, "SDL_GetDesktopDisplayMode failed: %s\n", SDL_GetError());
+      goto err;
+    }
+
+    display_window_width = display_mode.w;
+    display_window_height = display_mode.h;
+  }
+
+  if (display_monitor > 0)
+  {
+    num_displays = SDL_GetNumVideoDisplays();
+    if (display_monitor > (num_displays - 1))
+    {
+      fprintf (stderr, "Invalid monitor selected\n");
+      goto err;
+    }
+  }
+
+  display_window = SDL_CreateWindow(
+    "Syndicate Wars",
+    SDL_WINDOWPOS_CENTERED_DISPLAY(display_monitor),
+    SDL_WINDOWPOS_CENTERED_DISPLAY(display_monitor),
+    display_window_width, display_window_height,
+    window_flags);
+  if (NULL == display_window)
+  {
+     fprintf (stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+     goto err;
+  }
+
+  display_renderer = SDL_CreateRenderer(display_window, -1, 0);
+  if (NULL == display_renderer)
+  {
+    fprintf (stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
+    goto err;
+  }
+
+  rgba_8888_texture_pixel_format = SDL_AllocFormat(SDL_PIXELFORMAT_RGBA8888);
+  if (NULL == rgba_8888_texture_pixel_format)
+  {
+    fprintf (stderr, "SDL_AllocFormat failed %s\n", SDL_GetError());
+    goto err;
+  }
+
+
+  return 1;
+
+err:
+  if (display_window)
+  {
+    SDL_DestroyWindow(display_window);
+    display_window = NULL;
+  }
+  if (display_renderer)
+  {
+    SDL_DestroyRenderer(display_renderer);
+    display_renderer = NULL;
+  }
+  if (rgba_8888_texture_pixel_format)
+  {
+    SDL_FreeFormat(rgba_8888_texture_pixel_format);
+    rgba_8888_texture_pixel_format = NULL;
+  }
+  return -1;
 }
 
 void
@@ -317,6 +498,27 @@ display_finalise (void)
   SDL_FreeSurface (display_screen);
   display_screen = NULL;
   display_buffer = NULL;
+
+  if (display_window)
+  {
+    SDL_DestroyWindow(display_window);
+    display_window = NULL;
+  }
+  if (display_renderer)
+  {
+    SDL_DestroyRenderer(display_renderer);
+    display_renderer = NULL;
+  }
+  if (rgba_8888_texture_pixel_format)
+  {
+    SDL_FreeFormat(rgba_8888_texture_pixel_format);
+    rgba_8888_texture_pixel_format = NULL;
+  }
+  if (display_texture)
+  {
+      SDL_DestroyTexture(display_texture);
+      display_texture = NULL;
+  }
 }
 
 void
@@ -326,6 +528,31 @@ display_set_full_screen (bool full_screen)
     return;
 
   display_full_screen = full_screen;
+}
+
+void display_set_borderless_full_screen(bool borderless_full_screen)
+{
+  if (display_screen != NULL)
+    return;
+
+  display_borderless_full_screen = borderless_full_screen;
+}
+
+void display_set_window_size(int window_width, int window_height)
+{
+  if (window_width < 640 || window_height < 480)
+  {
+    fprintf (stderr, "WARNING: Window resolution ignored. Minimum is 640x480\n");
+    return;
+  }
+
+  display_window_width = window_width;
+  display_window_height = window_height;
+}
+
+void display_set_monitor(int monitor)
+{
+  display_monitor = monitor;
 }
 
 void
@@ -382,11 +609,6 @@ display_get_palette (SDL_Color *colours)
   memcpy (colours, display_palette, sizeof (display_palette));
 }
 
-void 
-display_set_lowres_stretch (bool stretch)
-{
-  display_lowres_stretch = stretch;
-}
 
 bool
 display_is_stretching_enabled (void)

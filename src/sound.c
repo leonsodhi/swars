@@ -142,7 +142,7 @@ create_sources (void)
     }
 
 #ifdef ENABLE_DEBUG
-  printf ("OpenAL: Created %zu sound sources.\n", sound_source_count);
+  printf ("OpenAL: Created %u sound sources.\n", sound_source_count);
 #endif
 
   return true;

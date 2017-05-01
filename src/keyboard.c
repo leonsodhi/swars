@@ -14,7 +14,7 @@ extern uint32_t keyboard_last_key_prefixed;
 extern uint8_t 	keyboard_table[256];
 
 static uint8_t
-sdlkey_to_scan_code (SDLKey key)
+sdlkey_to_scan_code (SDL_Keycode key)
 {
   switch (key)
     {
@@ -90,28 +90,28 @@ sdlkey_to_scan_code (SDLKey key)
     case SDLK_F8:		return 0x42;
     case SDLK_F9:		return 0x43;
     case SDLK_F10:		return 0x44;
-    case SDLK_NUMLOCK:		return 0x45;
-    case SDLK_SCROLLOCK:	return 0x46;
-    case SDLK_KP7:
+    case SDLK_NUMLOCKCLEAR:		return 0x45;
+    case SDLK_SCROLLLOCK:	return 0x46;
+    case SDLK_KP_7:
     case SDLK_HOME:		return 0x47;
-    case SDLK_KP8:
+    case SDLK_KP_8:
     case SDLK_UP:		return 0x48;
-    case SDLK_KP9:
+    case SDLK_KP_9:
     case SDLK_PAGEUP:		return 0x49;
     case SDLK_KP_MINUS:		return 0x4a;
-    case SDLK_KP4:
+    case SDLK_KP_4:
     case SDLK_LEFT:		return 0x4b;
-    case SDLK_KP5:		return 0x4c;
-    case SDLK_KP6:
+    case SDLK_KP_5:		return 0x4c;
+    case SDLK_KP_6:
     case SDLK_RIGHT:		return 0x4d;
     case SDLK_KP_PLUS:		return 0x4e;
-    case SDLK_KP1:
+    case SDLK_KP_1:
     case SDLK_END:		return 0x4f;
-    case SDLK_KP2:
+    case SDLK_KP_2:
     case SDLK_DOWN:		return 0x50;
-    case SDLK_KP3:
+    case SDLK_KP_3:
     case SDLK_PAGEDOWN:		return 0x51;
-    case SDLK_KP0:
+    case SDLK_KP_0:
     case SDLK_INSERT:		return 0x52;
     case SDLK_KP_PERIOD:
     case SDLK_DELETE:		return 0x53;
@@ -121,9 +121,9 @@ sdlkey_to_scan_code (SDLKey key)
     case SDLK_F12:		return 0x58;
 
     case SDLK_F13:
-    case SDLK_LSUPER:		return 0x5b;
+    case SDLK_LGUI: return 0x5b;
     case SDLK_F14:
-    case SDLK_RSUPER:		return 0x5c;
+    case SDLK_RGUI: return 0x5c;
     case SDLK_F15:
     case SDLK_MENU:		return 0x5d;
 
@@ -132,7 +132,7 @@ sdlkey_to_scan_code (SDLKey key)
 }
 
 static bool
-is_key_prefixed (SDLKey key)
+is_key_prefixed (SDL_Keycode key)
 {
   switch (key)
     {
@@ -159,7 +159,7 @@ is_key_prefixed (SDLKey key)
 }
 
 static uint8_t
-get_key_table_index (SDLKey key)
+get_key_table_index (SDL_Keycode key)
 {
   uint8_t index;
 
@@ -171,7 +171,7 @@ get_key_table_index (SDLKey key)
 }
 
 static bool
-is_key_pressed (SDLKey key)
+is_key_pressed (SDL_Keycode key)
 {
   return (keyboard_table[get_key_table_index (key)] != 0);
 }
@@ -263,7 +263,8 @@ keyboard_handle_event (const SDL_Event *ev)
 void
 keyboard_initialise (void)
 {
-  SDL_EnableKeyRepeat (SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+  // TODO: needed?
+  //SDL_EnableKeyRepeat (SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
 }
 
 uint32_t

@@ -59,7 +59,12 @@ game_initialise (void)
 
   keyboard_initialise ();
   mouse_initialise ();
-  display_initialise ();
+
+  if (display_initialise () != 1)
+  {
+    return false;
+  }
+
   sound_initialise ();
 
   if (sys_get_data_path (buffer, sizeof (buffer)))

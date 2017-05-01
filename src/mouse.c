@@ -179,5 +179,6 @@ void
 mouse_initialise (void)
 {
   SDL_ShowCursor (SDL_DISABLE);
+  SDL_SetRelativeMouseMode(SDL_TRUE);
 }
 
