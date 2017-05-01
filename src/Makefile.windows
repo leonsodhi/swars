@@ -9,7 +9,7 @@ CFLAGS	 = -mno-ms-bitfields -include windows.config.h -Wall -Wextra -Wno-unused-
 CPPFLAGS = -mno-ms-bitfields -C -DNEED_UNDERSCORE=1
 LDFLAGS	 =
 MKWFLAGS = -u
-LIBS	 = -lmsvcrt $(shell sdl2-config --libs) -lOpenAL32 -lvorbisfile -lvorbis -logg -lpng -lz
+LIBS	 = -lmsvcrt $(shell sdl2-config --libs) -lOpenAL32 -lvorbisfile -lvorbis -logg -lpng -lz -mconsole
 RM	 = rm
 RENAME	 = fnmap_windows.conf
 TARGET	 = swars.exe
