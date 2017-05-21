@@ -51,7 +51,6 @@ static bool display_borderless_full_screen = false;
 static int display_window_width = 640;
 static int display_window_height = 480;
 static int display_monitor = 0;
-static unsigned char *display_stretch_buffer = NULL;
 static SDL_Color    display_palette[256];
 
 static void
@@ -166,81 +165,34 @@ display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
       SDL_DestroyTexture(display_texture);
   }
 
-  // Stretch lowres ?
-  if (width == 320 && height == 200)
-    {
-      // Init mode
-      /*display_screen = SDL_SetVideoMode (640, 480,
-  				         internal_graphic_mode_list[mode].bpp,
-                                         surface_flags);*/
 
-      // Assumes 8-bit colour in all cases
-      display_screen = SDL_CreateRGBSurfaceWithFormat(
-        0,
-        640, 480,
-        8,
-        SDL_PIXELFORMAT_INDEX8);
+  // Init mode
+  /*display_screen = SDL_SetVideoMode (width, height,
+             internal_graphic_mode_list[mode].bpp,
+             surface_flags);*/
 
-      if (display_screen == NULL) {
-        fprintf (stderr, "SDL_CreateRGBSurface() failed: %s", SDL_GetError());
-        goto err;
-      }
+  // Assumes 8-bit colour in all cases
+  display_screen = SDL_CreateRGBSurfaceWithFormat(
+    0,
+    width, height,
+    8,
+    SDL_PIXELFORMAT_INDEX8);
 
-      display_texture = SDL_CreateTexture(
-        display_renderer,
-        SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        640, 480);
+  if (display_screen == NULL) {
+    fprintf (stderr, "SDL_CreateRGBSurface() failed: %s", SDL_GetError());
+    goto err;
+  }
 
-      if (display_texture == NULL) {
-        fprintf (stderr, "SDL_CreateTexture() failed: %s", SDL_GetError());
-        goto err;
-      }
+  display_texture = SDL_CreateTexture(
+    display_renderer,
+    SDL_PIXELFORMAT_RGBA8888,
+    SDL_TEXTUREACCESS_STREAMING,
+    width, height);
 
-      // Allocate buffer
-      if (display_stretch_buffer == NULL)
-        {
-          display_stretch_buffer = xmalloc(320 * 240);
-        }
-    }
-  else
-    {
-      // Remove buffer if any
-      if (display_stretch_buffer != NULL)
-        {
-          xfree (display_stretch_buffer);
-          display_stretch_buffer = NULL;
-        }
-
-      // Init mode
-      /*display_screen = SDL_SetVideoMode (width, height,
- 				         internal_graphic_mode_list[mode].bpp,
-				         surface_flags);*/
-
-      // Assumes 8-bit colour in all cases
-      display_screen = SDL_CreateRGBSurfaceWithFormat(
-        0,
-        width, height,
-        8,
-        SDL_PIXELFORMAT_INDEX8);
-
-      if (display_screen == NULL) {
-        fprintf (stderr, "SDL_CreateRGBSurface() failed: %s", SDL_GetError());
-        goto err;
-      }
-
-      display_texture = SDL_CreateTexture(
-        display_renderer,
-        SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        width, height);
-
-      if (display_texture == NULL) {
-        fprintf (stderr, "SDL_CreateTexture() failed: %s", SDL_GetError());
-        goto err;
-      }
-
-    }
+  if (display_texture == NULL) {
+    fprintf (stderr, "SDL_CreateTexture() failed: %s", SDL_GetError());
+    goto err;
+  }
 
 
 #ifdef ENABLE_DEBUG
@@ -258,17 +210,7 @@ display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
 
   lock_screen ();
 
-  // set vga buffer address
-  if (display_stretch_buffer != NULL)
-    {
-      // Set the temporary buffer
-      display_buffer = display_stretch_buffer;
-    }
-  else
-    {
-      // Set the good buffer
-      display_buffer = display_screen->pixels;
-    }
+  display_buffer = display_screen->pixels;
 
   // Setup some global variables
   display_vesa_width  = internal_graphic_mode_list[mode].width;
@@ -300,17 +242,11 @@ display_set_mode (uint16_t mode, uint32_t width, uint32_t height,
 
 err:
   if (display_screen != NULL)
-    {
-      unlock_screen ();
-      SDL_FreeSurface (display_screen);
-      display_screen = NULL;
-    }
-
-  if (display_stretch_buffer)
-    {
-      xfree (display_stretch_buffer);
-      display_stretch_buffer = NULL;
-    }
+  {
+    unlock_screen ();
+    SDL_FreeSurface (display_screen);
+    display_screen = NULL;
+  }
 
   if (display_texture)
   {
@@ -323,7 +259,6 @@ err:
   return -1;
 }
 
-/* FIXME: doesn't work with stretching */
 void
 display_update_mouse_pointer (void)
 {
@@ -368,27 +303,6 @@ display_update (void)
   int i;
   unsigned char* display_screen_pixels = display_screen->pixels;
 
-  // Stretched lowres in action?
-  if (display_stretch_buffer != NULL)
-    {
-      // Stretch lowres
-      unsigned char *poutput = (unsigned char*) display_screen->pixels;
-      unsigned char *pinput  = display_stretch_buffer;
-      int j;
-      for (j = 0; j < 480; j++)
-        {
-          for (i = 0; i < 640; i+=2)
-            {
-              // Do not touch this formula
-              int input_xy = ((j * 200) / 480) * 320 + i / 2;
-              int output_xy = j * 640 + i;
-
-              poutput[output_xy]     = pinput[input_xy];
-              poutput[output_xy + 1] = pinput[input_xy];
-            }
-        }
-  }
-
   SDL_LockTexture(display_texture, NULL, (void*)&texture_pixels, &texture_pitch);
   for(i = 0; i < display_texture_width * display_texture_height; i++)
   {
@@ -412,6 +326,7 @@ display_initialise (void)
   uint32_t window_flags = 0;
   int num_displays = 1;
   SDL_DisplayMode display_mode;
+  SDL_bool ret = SDL_TRUE;
 
   window_flags = SDL_WINDOW_MOUSE_CAPTURE;
 
@@ -469,6 +384,11 @@ display_initialise (void)
     goto err;
   }
 
+  ret = SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "2");
+  if (ret != SDL_TRUE)
+  {
+    fprintf (stderr, "WARNING: SDL_HINT_RENDER_SCALE_QUALITY failed\n");
+  }
 
   return 1;
 
@@ -591,10 +511,10 @@ display_get_physical_size (size_t *width, size_t *height)
     }
 
   if (width != NULL)
-    *width  = display_screen->w;
+    *width  = display_window_width;
 
   if (height != NULL)
-    *height = display_screen->h;
+    *height = display_window_height;
 }
 
 void *
@@ -607,13 +527,6 @@ void
 display_get_palette (SDL_Color *colours)
 {
   memcpy (colours, display_palette, sizeof (display_palette));
-}
-
-
-bool
-display_is_stretching_enabled (void)
-{
-  return (bool) (display_stretch_buffer != NULL);
 }
 
 void

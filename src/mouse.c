@@ -24,27 +24,41 @@ extern bool	mouse_middle_release_locked;
 extern bool	mouse_right_release_locked;
 
 static void
-transform_mouse (int32_t *x, int32_t *y)
+transform_mouse()
 {
   size_t phys_x, phys_y;
   size_t disp_x, disp_y;
 
-  if (!display_is_stretching_enabled ())
-    return;
-
   display_get_physical_size (&phys_x, &phys_y);
   display_get_size (&disp_x, &disp_y);
 
-  /*
-   * The "+ 1" shouldn't be needed, but for some reason on Mac OS X in 640x480
-   * you can only move your cusror as far as y=477, which prevents you from
-   * reaching the bottom edge of the screen after the transformation.
-   *
-   * On other systems, where you can reach y=479, this can result in y=200 after
-   * the transformation, but the game has no problem with that.
-   */
-  *x = ((*x) * (ssize_t) (disp_x + 1)) / (ssize_t) phys_x;
-  *y = ((*y) * (ssize_t) (disp_y + 1)) / (ssize_t) phys_y;
+  if (phys_x != disp_x)
+  {
+    if (mouse_x < 0)
+    {
+        mouse_x = 0;
+        mouse_x_delta = 0;
+    }
+    if (mouse_x >= (ssize_t) phys_x)
+    {
+      mouse_x = phys_x - 1;
+      mouse_x_delta = 0;
+    }
+  }
+
+  if (phys_y != disp_y)
+  {
+    if (mouse_y < 0)
+    {
+      mouse_y = 0;
+      mouse_y_delta = 0;
+    }
+    if (mouse_y >= (ssize_t) disp_y)
+    {
+      mouse_y = disp_y - 1;
+      mouse_y_delta = 0;
+    }
+  }
 }
 
 static void
@@ -52,15 +66,13 @@ store_button_coordinates (const SDL_MouseButtonEvent *ev)
 {
   if (ev->type == SDL_MOUSEBUTTONDOWN)
     {
-      mouse_press_x = ev->x;
-      mouse_press_y = ev->y;
-      transform_mouse (&mouse_press_x, &mouse_press_y);
+      mouse_press_x = mouse_x;
+      mouse_press_y = mouse_y;
     }
   else
     {
-      mouse_release_x = ev->x;
-      mouse_release_y = ev->y;
-      transform_mouse (&mouse_release_x, &mouse_release_y);
+      mouse_release_x = mouse_x;
+      mouse_release_y = mouse_y;
     }
 }
 
@@ -141,12 +153,9 @@ handle_button_event (const SDL_MouseButtonEvent *ev)
 static void
 handle_motion_event (const SDL_MouseMotionEvent *ev)
 {
-  mouse_x_delta = ev->xrel;
-  mouse_y_delta = ev->yrel;
-  mouse_x = ev->x;
-  mouse_y = ev->y;
-  transform_mouse (&mouse_x, &mouse_y);
-  transform_mouse (&mouse_x_delta, &mouse_y_delta);
+  mouse_x += ev->xrel;
+  mouse_y += ev->yrel;
+  transform_mouse();
 
   asm volatile
     ("call mouse_correct_to_within_bounds;"
