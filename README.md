@@ -1,6 +1,6 @@
 # swars
 
-This is continuation of the project created by Unavowed and Gynvael Coldwind. It also incorporates one of the fixes discovered by [mefistotelis](https://github.com/mefistotelis/swars) related to structure packing. See http://swars.vexillium.org for details.
+This is a continuation of the project created by Unavowed and Gynvael Coldwind. It also incorporates one of the fixes discovered by [mefistotelis](https://github.com/mefistotelis/swars) related to structure packing. See http://swars.vexillium.org for details.
 
 # Building on Windows 7 (64-bit) from the original source
 
@@ -29,7 +29,7 @@ This is continuation of the project created by Unavowed and Gynvael Coldwind. It
 * Edit `C:\projects\libs\SDL-1.2.14\bin\sdl-config` and change `prefix=/usr/local` to `prefix=C:/mingw`
 * Copy the directories `bin`, `include`, `lib`, `man`, and `share` from `C:\projects\libs\SDL-1.2.14` to `C:\mingw`
 * Copy `bin\Win32\soft_oal.dll` from `C:\projects\libs\openal-soft-1.17.2-bin` to `C:\mingw\bin`
-* Copy the cirectory `C:\projects\libs\openal-soft-1.17.2-bin\include` to `C:\mingw`
+* Copy the directory `C:\projects\libs\openal-soft-1.17.2-bin\include` to `C:\mingw`
 * Copy the contents of `C:\projects\libs\openal-soft-1.17.2-bin\libs\Win32` to `C:\mingw\lib`
   
 ### Building & installing libogg
@@ -82,3 +82,15 @@ libvorbisfile-3.dll
 libvorbis-0.dll
 libogg-0.dll
 ```
+
+# Building on Windows 7 (64-bit) using this repo
+
+* Follow the first section above to setup `mingw` & Python. Use the source code from this repository instead
+* Install all dependencies with the exception of SDL
+* Install the SDL2 development library:
+  * Download and extract [SDL2-2.0.5](https://www.libsdl.org/release/SDL2-devel-2.0.5-mingw.tar.gz) to `C:\projects\libs\SDL2-2.0.5`
+  * Edit `C:\projects\libs\SDL2-2.0.5\i686-w64-mingw32\bin\sdl2-config` and change the `prefix` to `prefix=C:/mingw`
+  * Copy the contents of `C:\projects\libs\SDL2-2.0.5\i686-w64-mingw32` to `C:\mingw`
+* Skip the makefile changes
+* Skip fixing up the source
+* Compile and install but copy SDL2.dll instead of SDL.dll
