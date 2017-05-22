@@ -2,6 +2,17 @@
 
 This is a continuation of the project created by Unavowed and Gynvael Coldwind. It also incorporates one of the fixes discovered by [mefistotelis](https://github.com/mefistotelis/swars) related to structure packing. See http://swars.vexillium.org for details.
 
+# Usage
+```
+Usage: swars.exe [OPTIONS]
+
+Available options:
+  --windowed=WxH Run in windowed mode at specified resolution. Default is 640x480
+  --fullwindow   Run in fullscreen borderless window mode
+  --monitor=X    Display on monitor X
+  --help         Display the help message
+```
+
 # Building on Windows 7 (64-bit) from the original source
 
 * Download mingw-get-setup.exe and install it to `C:\MinGW`
